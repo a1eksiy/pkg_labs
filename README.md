@@ -26,15 +26,6 @@ pip install -r requirements.txt
 python run.py
 ```
 
-## Сборка EXE
-
-```text
-pip install pyinstaller
-pyinstaller --noconsole --onefile --name ColorModels run.py
-```
-
-Готовый файл появится в каталоге `dist`.
-
 ## Преобразования
 
 CMYK ↔ RGB ↔ HSV.
@@ -43,7 +34,3 @@ CMYK ↔ RGB ↔ XYZ ↔ LAB.
 
 LAB → XYZ → RGB сопровождается проверкой выхода линейных RGB-компонентов за допустимый диапазон sRGB.
 
-## Ограничение
-
-CMYK реализован как математическая модель без ICC-профиля печатного устройства.
-LAB использует белую точку D65.

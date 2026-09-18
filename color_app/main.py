@@ -108,7 +108,10 @@ class MainWindow(QMainWindow):
         self.palette_button = QPushButton("Выбрать цвет из палитры")
         self.palette_button.clicked.connect(self.choose_color)
 
-        self.hex_label = QLabel()
+        self.help_button = QPushButton("Help")
+        self.help_button.clicked.connect(self.show_help)
+
+        self.hex_label = QLabel()   
 
         models = QHBoxLayout()
         models.addWidget(self.cmyk)
@@ -117,6 +120,7 @@ class MainWindow(QMainWindow):
 
         controls = QHBoxLayout()
         controls.addWidget(self.palette_button)
+        controls.addWidget(self.help_button)
         controls.addWidget(self.hex_label)
 
         central = QWidget()
@@ -162,6 +166,35 @@ class MainWindow(QMainWindow):
             if warning else ""
         )
         self.updating = False
+
+
+    def show_help(self):
+        QMessageBox.information(
+        self,
+        "Help",
+        "Как пользоваться приложением\n\n"
+        "1. Выбор цвета\n"
+        "Нажмите «Выбрать цвет из палитры», чтобы выбрать исходный цвет "
+        "с помощью стандартного диалога Qt.\n\n"
+        "2. Точный ввод\n"
+        "В каждой цветовой модели можно вручную ввести значение "
+        "компоненты в соответствующее поле.\n\n"
+        "3. Ползунки\n"
+        "Передвигайте ползунок, чтобы плавно изменять значение компоненты.\n\n"
+        "4. Автоматический пересчёт\n"
+        "При изменении любой компоненты CMYK, LAB или HSV приложение "
+        "автоматически пересчитывает остальные две цветовые модели. "
+        "Их поля и ползунки также обновляются.\n\n"
+        "5. Диапазоны\n"
+        "CMYK: C, M, Y, K — 0–100%.\n"
+        "LAB: L* — 0–100, a* и b* — -128–127.\n"
+        "HSV: H — 0–360°, S и V — 0–100%.\n\n"
+        "6. Предупреждение\n"
+        "Некоторые цвета LAB невозможно точно представить в пространстве "
+        "sRGB. В таком случае приложение ограничивает значения RGB "
+        "допустимым диапазоном и показывает предупреждение."
+        )
+    
 
     def set_cmyk(self, values):
         self.cmyk.set_values([v * 100 for v in values])
