@@ -2,7 +2,6 @@
 __pycache__/
 *.pyc
 build/
-dist/
 *.spec
 .vscode/
 PKG_lab_1.spec
