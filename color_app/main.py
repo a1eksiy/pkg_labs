@@ -6,8 +6,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QPushButton, QSlider, QVBoxLayout, QWidget, QColorDialog,
     QMessageBox
 )
-from PySide6.QtWidgets import QMessageBox
-from .color_models import cmyk_to_lab, cmyk_to_hsv, lab_to_cmyk, lab_to_hsv, hsv_to_cmyk, hsv_to_lab, cmyk_to_rgb, xyz_to_rgb, lab_to_xyz
+from .color_models import cmyk_to_lab, cmyk_to_hsv, lab_to_cmyk, lab_to_hsv, hsv_to_cmyk, hsv_to_lab
 
 class Component(QWidget):
     def __init__(self, name, minimum, maximum, decimals, callback):
@@ -16,6 +15,7 @@ class Component(QWidget):
         self.decimals = decimals
         self.minimum = minimum
         self.maximum = maximum
+        self.value = 0.0
 
         self.label = QLabel(name)
         self.edit = QLineEdit()
@@ -33,9 +33,10 @@ class Component(QWidget):
 
     def set_value(self, value, emit=False):
         value = max(self.minimum, min(self.maximum, value))
+        self.value = value
         self.edit.blockSignals(True)
         self.slider.blockSignals(True)
-        self.edit.setText(f"{value:.{self.decimals}f}")
+        self.edit.setText(str(round(value)))
         pos = round((value - self.minimum) / (self.maximum - self.minimum) * 10000)
         self.slider.setValue(pos)
         self.edit.blockSignals(False)
@@ -45,8 +46,9 @@ class Component(QWidget):
 
     def slider_changed(self, pos):
         value = self.minimum + (self.maximum - self.minimum) * pos / 10000
+        self.value = value
         self.edit.blockSignals(True)
-        self.edit.setText(f"{value:.{self.decimals}f}")
+        self.edit.setText(str(round(value)))
         self.edit.blockSignals(False)
         self.callback(value)
 
@@ -71,7 +73,7 @@ class ModelBox(QFrame):
             layout.addWidget(component)
 
     def values(self):
-        return [float(c.edit.text().replace(",", ".")) for c in self.components]
+        return [c.value for c in self.components]
 
     def set_values(self, values):
         for component, value in zip(self.components, values):
@@ -111,7 +113,7 @@ class MainWindow(QMainWindow):
         self.help_button = QPushButton("Help")
         self.help_button.clicked.connect(self.show_help)
 
-        self.hex_label = QLabel()   
+        self.hex_label = QLabel()
 
         models = QHBoxLayout()
         models.addWidget(self.cmyk)
@@ -167,35 +169,6 @@ class MainWindow(QMainWindow):
         )
         self.updating = False
 
-
-    def show_help(self):
-        QMessageBox.information(
-        self,
-        "Help",
-        "Как пользоваться приложением\n\n"
-        "1. Выбор цвета\n"
-        "Нажмите «Выбрать цвет из палитры», чтобы выбрать исходный цвет "
-        "с помощью стандартного диалога Qt.\n\n"
-        "2. Точный ввод\n"
-        "В каждой цветовой модели можно вручную ввести значение "
-        "компоненты в соответствующее поле.\n\n"
-        "3. Ползунки\n"
-        "Передвигайте ползунок, чтобы плавно изменять значение компоненты.\n\n"
-        "4. Автоматический пересчёт\n"
-        "При изменении любой компоненты CMYK, LAB или HSV приложение "
-        "автоматически пересчитывает остальные две цветовые модели. "
-        "Их поля и ползунки также обновляются.\n\n"
-        "5. Диапазоны\n"
-        "CMYK: C, M, Y, K — 0–100%.\n"
-        "LAB: L* — 0–100, a* и b* — -128–127.\n"
-        "HSV: H — 0–360°, S и V — 0–100%.\n\n"
-        "6. Предупреждение\n"
-        "Некоторые цвета LAB невозможно точно представить в пространстве "
-        "sRGB. В таком случае приложение ограничивает значения RGB "
-        "допустимым диапазоном и показывает предупреждение."
-        )
-    
-
     def set_cmyk(self, values):
         self.cmyk.set_values([v * 100 for v in values])
         self.changed("CMYK")
@@ -204,16 +177,50 @@ class MainWindow(QMainWindow):
         color = QColorDialog.getColor(QColor(self.rgb_qcolor()), self, "Выбор цвета")
         if not color.isValid():
             return
+
+        h = color.hsvHueF() * 360.0
+        if h < 0:
+            h = 0.0
+        s = color.hsvSaturationF() * 100.0
+        v = color.valueF() * 100.0
+
         self.updating = True
-        self.set_cmyk((
-            color.cyanF(), color.magentaF(), color.yellowF(), color.blackF()
-        ))
+        self.hsv.set_values((h, s, v))
         self.updating = False
-        self.changed("CMYK")
+        self.changed("HSV")
+
+    def show_help(self):
+        QMessageBox.information(
+            self,
+            "Help",
+            "Как пользоваться приложением\n\n"
+            "1. Выбор цвета\n"
+            "Нажмите «Выбрать цвет из палитры», чтобы выбрать исходный цвет "
+            "с помощью стандартного диалога Qt.\n\n"
+            "2. Точный ввод\n"
+            "В каждой цветовой модели можно вручную ввести значение компоненты "
+            "в соответствующее поле. В интерфейсе значения отображаются "
+            "округлёнными до целого, но для расчётов сохраняется исходная точность.\n\n"
+            "3. Ползунки\n"
+            "Передвигайте ползунок, чтобы изменять значение компоненты.\n\n"
+            "4. Автоматический пересчёт\n"
+            "При изменении любой компоненты CMYK, LAB или HSV приложение "
+            "автоматически пересчитывает остальные две цветовые модели.\n\n"
+            "5. Диапазоны\n"
+            "CMYK: C, M, Y, K — 0–100%.\n"
+            "LAB: L* — 0–100, a* и b* — -128–127.\n"
+            "HSV: H — 0–360°, S и V — 0–100%.\n\n"
+            "6. Предупреждение\n"
+            "Некоторые цвета LAB невозможно представить в пространстве sRGB. "
+            "В таком случае приложение ограничивает значения RGB допустимым "
+            "диапазоном и показывает предупреждение."
+        )
 
     def rgb_qcolor(self):
         c, m, y, k = [v / 100 for v in self.cmyk.values()]
-        r, g, b = cmyk_to_rgb(c, m, y, k)
+        r = 255.0 * (1.0 - c) * (1.0 - k)
+        g = 255.0 * (1.0 - m) * (1.0 - k)
+        b = 255.0 * (1.0 - y) * (1.0 - k)
         return QColor(round(r), round(g), round(b))
 
     def update_preview(self):
