@@ -5,3 +5,5 @@ build/
 *.spec
 .vscode/
 PKG_lab_1.spec
+PKG_lab_1_v2.spec
+
