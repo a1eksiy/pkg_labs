@@ -4,6 +4,28 @@ from .common import ParseError, UnsupportedFormat, exact, u16, u32, result, chec
 
 SOF = {0xC0,0xC1,0xC2,0xC3,0xC5,0xC6,0xC7,0xC9,0xCA,0xCB,0xCD,0xCE,0xCF}
 
+
+def _find_eoi(f, size, chunk_size=65536):
+   
+    overlap = b""
+
+    while f.tell() < size:
+        chunk = f.read(min(chunk_size, size - f.tell()))
+
+        if not chunk:
+            break
+
+        data = overlap + chunk
+
+        if data.find(b"\xff\xd9") != -1:
+            return True
+
+        overlap = data[-1:]
+
+    return False
+
+
+
 def parse(path):
     size = os.path.getsize(path)
     with open(path, "rb") as f:
@@ -50,22 +72,11 @@ def parse(path):
                 exif = _parse_exif(data[6:])
                 dpi_x = dpi_x or exif[0]
                 dpi_y = dpi_y or exif[1]
+
             if marker == 0xDA:
-                while f.tell() < size:
-                    byte = exact(f, 1)[0]
-                    if byte == 0xFF:
-                        nxt = exact(f, 1)[0]
-                        while nxt == 0xFF:
-                            nxt = exact(f, 1)[0]
-                        if nxt == 0xD9:
-                            eoi = True
-                            break
-                        if nxt == 0x00 or 0xD0 <= nxt <= 0xD7:
-                            continue
-                        f.seek(-2, 1)
-                        break
-                if eoi:
-                    break
+                eoi = _find_eoi(f, size)
+                break
+
         if width is None or height is None:
             raise ParseError("SOF с размерами JPEG не найден")
         if not eoi:
