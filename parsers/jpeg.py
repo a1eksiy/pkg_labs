@@ -61,17 +61,32 @@ def parse(path):
                 height, width = u16(data[1:3], "big"), u16(data[3:5], "big")
                 components = data[5]
                 progressive = marker in (0xC2,0xC6,0xCA,0xCE)
+
             elif marker == 0xE0 and data.startswith(b"JFIF\x00") and len(data) >= 12:
                 units = data[7]
-                xden, yden = u16(data[8:10], "big"), u16(data[10:12], "big")
+                xden = u16(data[8:10], "big")
+                yden = u16(data[10:12], "big")
+
                 if units == 1:
-                    dpi_x, dpi_y = xden or None, yden or None
+                    dpi_x = xden or None
+                    dpi_y = yden or None
+
                 elif units == 2:
-                    dpi_x, dpi_y = round(xden * 2.54, 3) if xden else None, round(yden * 2.54, 3) if yden else None
+                    dpi_x = round(xden * 2.54, 3) if xden else None
+                    dpi_y = round(yden * 2.54, 3) if yden else None
+
+                else:
+                    dpi_x = None
+                    dpi_y = None
+
             elif marker == 0xE1 and data.startswith(b"Exif\x00\x00"):
-                exif = _parse_exif(data[6:])
-                dpi_x = dpi_x or exif[0]
-                dpi_y = dpi_y or exif[1]
+                exif_x, exif_y = _parse_exif(data[6:])
+
+                if dpi_x is None:
+                    dpi_x = exif_x
+
+                if dpi_y is None:
+                    dpi_y = exif_y
 
             if marker == 0xDA:
                 eoi = _find_eoi(f, size)
@@ -83,43 +98,80 @@ def parse(path):
             raise ParseError("Отсутствует маркер EOI (FF D9)")
         return result("JPEG", width, height, dpi_x, dpi_y, bpp=bpc * components if bpc and components else None, bpc=bpc, compression="DCT; " + ("progressive" if progressive else "baseline/other"), details=f"компонентов={components}")
 
+
+
 def _parse_exif(data):
     try:
         if len(data) < 8:
-            return (None, None)
+            return None, None
+
         endian_tag = data[:2]
-        endian = "little" if endian_tag == b"II" else "big" if endian_tag == b"MM" else None
-        if not endian or int.from_bytes(data[2:4], endian) != 42:
-            return (None, None)
-        off = int.from_bytes(data[4:8], endian)
-        if off + 2 > len(data):
-            return (None, None)
-        count = int.from_bytes(data[off:off+2], endian)
-        x = y = unit = None
+
+        if endian_tag == b"II":
+            endian = "little"
+        elif endian_tag == b"MM":
+            endian = "big"
+        else:
+            return None, None
+
+        if int.from_bytes(data[2:4], endian) != 42:
+            return None, None
+
+        offset = int.from_bytes(data[4:8], endian)
+
+        if offset + 2 > len(data):
+            return None, None
+
+        count = int.from_bytes(data[offset:offset + 2], endian)
+
+        x = None
+        y = None
+        unit = None
+
         for i in range(min(count, 512)):
-            p = off + 2 + i * 12
+            p = offset + 2 + i * 12
+
             if p + 12 > len(data):
                 break
-            tag = int.from_bytes(data[p:p+2], endian)
-            typ = int.from_bytes(data[p+2:p+4], endian)
-            n = int.from_bytes(data[p+4:p+8], endian)
-            val = data[p+8:p+12]
-            if tag == 0x0128:
+
+            tag = int.from_bytes(data[p:p + 2], endian)
+            typ = int.from_bytes(data[p + 2:p + 4], endian)
+            n = int.from_bytes(data[p + 4:p + 8], endian)
+            val = data[p + 8:p + 12]
+
+            if tag == 0x0128 and typ == 3 and n >= 1:
                 unit = int.from_bytes(val[:2], endian)
-            if tag in (0x011A, 0x011B) and typ == 5 and n:
+
+            elif tag in (0x011A, 0x011B) and typ == 5 and n >= 1:
                 ptr = int.from_bytes(val, endian)
-                if ptr + 8 <= len(data):
-                    num = int.from_bytes(data[ptr:ptr+4], endian)
-                    den = int.from_bytes(data[ptr+4:ptr+8], endian)
-                    if den:
-                        value = num / den
-                        if tag == 0x011A: x = value
-                        else: y = value
+
+                if ptr + 8 > len(data):
+                    continue
+
+                numerator = int.from_bytes(data[ptr:ptr + 4], endian)
+                denominator = int.from_bytes(data[ptr + 4:ptr + 8], endian)
+
+                if denominator == 0:
+                    continue
+
+                value = numerator / denominator
+
+                if tag == 0x011A:
+                    x = value
+                else:
+                    y = value
+
         if unit == 3:
-            x = x * 2.54 if x else None
-            y = y * 2.54 if y else None
-        if unit not in (2, 3):
-            return (None, None)
-        return (round(x, 3) if x else None, round(y, 3) if y else None)
+            x = x * 2.54 if x is not None else None
+            y = y * 2.54 if y is not None else None
+
+        elif unit != 2:
+            return None, None
+
+        return (
+            round(x, 3) if x is not None and x > 0 else None,
+            round(y, 3) if y is not None and y > 0 else None
+        )
+
     except (IndexError, ValueError, OverflowError):
-        return (None, None)
+        return None, None

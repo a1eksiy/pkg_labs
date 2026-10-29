@@ -15,6 +15,10 @@ def parse(path):
         if dib_size < 12 or 12 < dib_size < 40:
             raise ParseError("Неподдерживаемый или некорректный DIB-заголовок")
         check_range(14, dib_size, size)
+
+        dpi_x = None
+        dpi_y = None
+
         if dib_size == 12:
             width, height = u16(exact(f, 2)), u16(exact(f, 2))
             planes, bpp = u16(exact(f, 2)), u16(exact(f, 2))
@@ -25,8 +29,19 @@ def parse(path):
             planes, bpp = u16(exact(f, 2)), u16(exact(f, 2))
             compression = u32(exact(f, 4))
             exact(f, 4)
-            exact(f, 4)
-            exact(f, 4)
+
+            xppm = int.from_bytes(exact(f, 4), "little", signed=True)
+            yppm = int.from_bytes(exact(f, 4), "little", signed=True)
+
+            dpi_x = round(xppm * 0.0254, 3) if xppm > 0 else None
+            dpi_y = round(yppm * 0.0254, 3) if yppm > 0 else None
+
+            print(
+    f"BMP: DIB={dib_size}, "
+    f"xppm={xppm}, yppm={yppm}, "
+    f"dpi_x={dpi_x}, dpi_y={dpi_y}"
+)
+
             colors_used = u32(exact(f, 4))
             exact(f, 4)
         if width <= 0 or height == 0 or planes != 1 or bpp not in (1, 2, 4, 8, 16, 24, 32):
@@ -45,4 +60,4 @@ def parse(path):
             comp = f"Неизвестный код {compression}"
         else:
             comp = BI[compression]
-        return result("BMP", width, height, bpp=bpp, compression=comp, details=f"DIB={dib_size}; смещение пикселей={pixel_offset}; палитра={palette_count} записей")
+        return result("BMP", width, height, dpi_x, dpi_y, bpp=bpp, compression=comp, details=f"DIB={dib_size}; смещение пикселей={pixel_offset}; палитра={palette_count} записей")
