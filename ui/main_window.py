@@ -111,12 +111,19 @@ class MainWindow(QMainWindow):
             self._add_roots([folder])
 
     def _add_roots(self, roots):
-        if not hasattr(self, "roots"):
-            self.roots = []
-        for path in roots:
-            if path not in self.roots:
-                self.roots.append(path)
-        self.statusBar().showMessage(f"Источников выбрано: {len(self.roots)}")
+        self.roots = list(dict.fromkeys(roots))
+
+        self.model.clear()
+        self.total = 0
+
+        self.progress.setValue(0)
+        self.counter.setText("Файлов: 0")
+
+        self.statusBar().showMessage(
+            f"Выбрано источников: {len(self.roots)}"
+        )
+
+        self.apply_status_filter()
 
     def start_scan(self):
         if self.thread and self.thread.isRunning():

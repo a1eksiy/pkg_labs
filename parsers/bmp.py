@@ -36,11 +36,14 @@ def parse(path):
             dpi_x = round(xppm * 0.0254, 3) if xppm > 0 else None
             dpi_y = round(yppm * 0.0254, 3) if yppm > 0 else None
 
+            #testing outputting DPI on BMP files
+            """
             print(
     f"BMP: DIB={dib_size}, "
     f"xppm={xppm}, yppm={yppm}, "
     f"dpi_x={dpi_x}, dpi_y={dpi_y}"
 )
+        """
 
             colors_used = u32(exact(f, 4))
             exact(f, 4)
