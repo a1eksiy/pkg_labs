@@ -46,7 +46,10 @@ def histogram_equalization_rgb(image):
 
 def histogram_equalization_value(image):
     hsv = rgb_to_hsv(image)
-    hsv[:,:,2] = equalize_channel(hsv[:,:,2])
+
+    value = np.clip(hsv[:, :, 2] * 255, 0, 255).astype(np.uint8)
+    hsv[:, :, 2] = equalize_channel(value) / 255.0
+
     return hsv_to_rgb(hsv)
 
 def equalize_channel(channel):

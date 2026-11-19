@@ -6,6 +6,7 @@ from processing import filters
 from processing.histogram import histogram_data
 
 class MainWindow(QMainWindow):
+   
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Лабораторная работа 3 — Вариант 5")
@@ -39,26 +40,60 @@ class MainWindow(QMainWindow):
         self.open_btn.clicked.connect(self.open_image); self.save_btn.clicked.connect(self.save_image)
         self.reset_btn.clicked.connect(self.reset); self.apply_btn.clicked.connect(self.apply)
         self.percent.valueChanged.connect(lambda v: self.percent.setToolTip(f"Процентиль: {v}"))
+
     def open_image(self):
-        path,_=QFileDialog.getOpenFileName(self,"Открыть изображение","","Изображения (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)")
-        if not path: return
-        q=QImage(path)
-        if q.isNull():
-            QMessageBox.warning(self,"Ошибка","Не удалось загрузить изображение."); return
-        q=q.convertToFormat(QImage.Format_RGB888)
-        w,h=q.width(),q.height()
-        ptr=q.bits()
-        arr=np.frombuffer(ptr,dtype=np.uint8).reshape(h,w,3).copy()
-        self.original=arr; self.current=arr.copy()
-        self.show_image(self.left,arr); self.show_image(self.right,arr); self.update_hist()
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Открыть изображение",
+            "",
+            "Изображения (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)"
+         )
+
+        if not path:
+            return
+
+        image = QImage(path)
+
+        if image.isNull():
+            QMessageBox.warning(self, "Ошибка", "Не удалось открыть изображение")
+            return
+
+        image = image.convertToFormat(QImage.Format.Format_RGB888)
+
+        w = image.width()
+        h = image.height()
+        bytes_per_line = image.bytesPerLine()
+
+        ptr = image.bits()
+
+        buffer = np.frombuffer(
+             ptr,
+            dtype=np.uint8,
+            count=image.sizeInBytes()
+        )
+
+        arr = buffer.reshape(h, bytes_per_line)[:, :w * 3]
+        arr = arr.reshape(h, w, 3).copy()
+
+        self.original = arr
+        self.current = arr.copy()
+
+        self.show_image(self.left, arr)
+        self.show_image(self.right, arr)
+        self.update_hist()
+
     def show_image(self,label,array):
         h,w,_=array.shape
         q=QImage(array.data,w,h,3*w,QImage.Format_RGB888).copy()
         label.setPixmap(QPixmap.fromImage(q).scaled(label.size(),Qt.KeepAspectRatio,Qt.SmoothTransformation))
+
+
     def resizeEvent(self,event):
         super().resizeEvent(event)
         if self.original is not None:
             self.show_image(self.left,self.original); self.show_image(self.right,self.current)
+   
+   
     def apply(self):
         if self.original is None: return
         name=self.method.currentText(); r=self.radius.value()
@@ -70,9 +105,13 @@ class MainWindow(QMainWindow):
         elif name=="Эквализация RGB": out=filters.histogram_equalization_rgb(self.original)
         else: out=filters.histogram_equalization_value(self.original)
         self.current=out; self.show_image(self.right,out); self.update_hist()
+   
+   
     def reset(self):
         if self.original is None: return
         self.current=self.original.copy(); self.show_image(self.right,self.current); self.update_hist()
+    
+    
     def save_image(self):
         if self.current is None: return
         path,_=QFileDialog.getSaveFileName(self,"Сохранить изображение","","PNG (*.png);;JPEG (*.jpg)")
@@ -80,6 +119,8 @@ class MainWindow(QMainWindow):
             h,w,_=self.current.shape
             q=QImage(self.current.data,w,h,3*w,QImage.Format_RGB888).copy()
             if not q.save(path): QMessageBox.warning(self,"Ошибка","Не удалось сохранить файл.")
+   
+   
     def update_hist(self):
         if self.current is None: return
         hist=histogram_data(self.current)
